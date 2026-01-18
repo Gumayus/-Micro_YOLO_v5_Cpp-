@@ -213,7 +213,6 @@ public:
     {
         int ndim = this->shape.size();
 
-        // 1. 形状完全相同
         if (this->shape == other.shape)
         {
             Tensor result(this->shape);
