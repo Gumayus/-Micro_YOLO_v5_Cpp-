@@ -1,0 +1,33 @@
+# C++ 编译产物
+build/
+build_cpp/
+*.o
+*.out
+*.exe
+yolo_run
+yolo_bench
+
+# 也就是各种二进制库文件 (通常太大，不传)
+*.so
+*.a
+*.dll
+*.lib
+
+# 模型文件 (太大了，GitHub 免费版单文件限 100MB，建议忽略或用 Git LFS)
+*.onnx
+*.pt
+*.kmodel
+
+# 图片/视频数据
+*.jpg
+*.png
+*.mp4
+*.avi
+
+# 编辑器配置 (每个人习惯不同，不要传你的配置)
+.vscode/
+.idea/
+*.swp
+
+# 系统文件
+.DS_Store
