@@ -1,0 +1,7 @@
+* text=auto
+*.cpp text charset=utf-8 eol=lf
+*.h text charset=utf-8 eol=lf
+*.hpp text charset=utf-8 eol=lf
+*.txt text charset=utf-8 eol=lf
+*.md text charset=utf-8 eol=lf
+*.py text charset=utf-8 eol=lf
