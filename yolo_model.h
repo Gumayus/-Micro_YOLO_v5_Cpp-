@@ -1,6 +1,19 @@
 #pragma once 
 #include <opencv2/opencv.hpp>
 #include <vector>
+#include <iostream>
+#include <memory>
+#include <cmath>
+#include <vector>
+#include <random>
+#include <numeric> 
+#include <iomanip>
+#include <string>
+#include <cstdio>
+#include <cstring>
+#include <cfloat>
+#include <omp.h>
+#include <immintrin.h> 
 
 struct Detection {
     int class_id;
@@ -10,43 +23,30 @@ struct Detection {
 
 class YoloV5Detector {
 public:
-    // ���캯��
+    
     YoloV5Detector(const std::string& modelPath, bool isCuda = false);
-    // ��������
+    
     std::vector<Detection> detect(cv::Mat& frame,bool use_quant = false);
 
 private:
     // ����
     const float INPUT_W = 640.0;
     const float INPUT_H = 640.0;
-    const float SCORE_THRES = 0.15f; // ���Ŷ���ֵ
-    const float NMS_THRES = 0.45f;   // NMS ��ֵ
+    const float SCORE_THRES = 0.15f; // 置信度阈值
+    const float NMS_THRES = 0.45f;   // NMS 阈值
 
     cv::dnn::Net net;
 
-    // ������Letterbox (���ֳ���������)
+    
     cv::Mat formatToSquare(const cv::Mat& source);
 };
 
-#include <iostream>
-#include <memory>
-#include <cmath>
-#include <vector>
-#include <random>
-#include <numeric> // for std::accumulate
-#include <iomanip> // for std::setw (��ӡ������)
-#include <string>
-#include <cstdio>
-#include <cstring>
-#include <cfloat>
-#include <omp.h>
-#include <immintrin.h> // 顺便把 AVX 的头文件也加了
 
 inline float random_normal()
 {
     static std::random_device rd;
     static std::mt19937 gen(rd());
-    static std::normal_distribution<float> dis(0.0f, 1.0f); // ��׼��̬�ֲ�����ֵΪ0�������Ϊ1
+    static std::normal_distribution<float> dis(0.0f, 1.0f); 
     return dis(gen);
 }
 
@@ -54,18 +54,17 @@ class Tensor
 {
 public:
     std::vector<float> data;
-    std::vector<int> shape;   // ������״
-    std::vector<int> strides; // ����
+    std::vector<int> shape;   
+    std::vector<int> strides; 
 
     void compute_strides()
     {
-        strides.resize(shape.size()); // ��������������Ϊ��shape������ͬ����״
-
+        strides.resize(shape.size()); 
         int stride = 1;
         for (int i = shape.size() - 1; i >= 0; --i)
         {
-            strides[i] = stride; // �趨���һά�Ĳ���Ϊ1
-            stride *= shape[i];  // ��ȥ���һά������ά�Ĳ������ڵ�ǰά�ȵ�Ԫ�ظ�������ǰһά�Ĳ���
+            strides[i] = stride; 
+            stride *= shape[i]; 
         }
     }
 
@@ -88,14 +87,14 @@ public:
         for (int s : shape)
             size *= s;
 
-        data.resize(size, 0.0f); // ��ʼ������ÿ��Ԫ��Ϊ0
+        data.resize(size, 0.0f); 
 
         compute_strides();
     }
 
     void fill(float value)
     {
-        std::fill(data.begin(), data.end(), value); // ��data�е������������ó�value
+        std::fill(data.begin(), data.end(), value);
     }
 
     Tensor operator+(const Tensor& other) const
