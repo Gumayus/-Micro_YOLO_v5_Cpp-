@@ -312,7 +312,7 @@ public:
     {
         int ndim = this->shape.size();
 
-        // 1. �������
+        // 1. shape形状检测
         if (ndim != other.shape.size()) {
             std::cerr << "MatMul Error: Ranks must match! " << ndim << " vs " << other.shape.size() << std::endl;
             exit(1);
@@ -322,24 +322,22 @@ public:
             exit(1);
         }
 
-        // 2. ά����ȡ (������ A[..., M, K] @ B[..., K, N])
-        // ���� 2D ���� 4D�������ά��Զ�Ǿ���˷��ĺ���
+      
         int M = this->shape[ndim - 2];
         int K = this->shape[ndim - 1];
         int K_other = other.shape[ndim - 2];
         int N = other.shape[ndim - 1];
 
-        // 3. K ά�ȱ������
+     
         if (K != K_other) {
             std::cerr << "MatMul Shape Mismatch: "
                 << "A[..." << M << "," << K << "] @ B[..." << K_other << "," << N << "]" << std::endl;
             exit(1);
         }
 
-        // 4. ��� Batch ά�� (ǰ N-2 ά����һ��)
-        // ��������״
+        
         std::vector<int> out_shape = this->shape;
-        out_shape[ndim - 1] = N; // ���һά��� N
+        out_shape[ndim - 1] = N; 
 
         for (int i = 0; i < ndim - 2; ++i) {
             if (this->shape[i] != other.shape[i]) {
@@ -348,49 +346,42 @@ public:
             }
         }
 
-        // 5. �����������
+        
         Tensor out(out_shape);
 
-        // =================================================
-        //  ·�� A: 2D ����˷� (Linear ��)
-        // =================================================
+        //二维坐标访问
         if (ndim == 2)
         {
-            // OpenMP ���м��� (���������֧��)
+            // OpenMP 开启并行运算
 #pragma omp parallel for collapse(2)
             for (int i = 0; i < M; ++i) {
                 for (int j = 0; j < N; ++j) {
                     float sum = 0.0f;
                     for (int k = 0; k < K; ++k) {
-                        // ʹ�� at(i, j) �Զ����� strides
+                        
                         sum += this->at(i, k) * other.at(k, j);
                     }
                     out.at(i, j) = sum;
                 }
             }
         }
-        // =================================================
-        //  ·�� B: 4D ��������˷� (Attention ��)
-        //  ��״: [Batch, Head, Seq, Dim]
-        // =================================================
+       
         else if (ndim == 4)
         {
             int B_dim = shape[0];  // Batch Size
             int NH_dim = shape[1]; // Num Heads
 
-            // ����ѭ��̫���ʵǰ��ά�ǡ����С��ģ�����ά�ǡ����㡱
-#pragma omp parallel for collapse(2) // ���д���ÿ�� Batch �� Head
+           
+#pragma omp parallel for collapse(2) //使用openmp并行加速
             for (int b = 0; b < B_dim; ++b) {
                 for (int nh = 0; nh < NH_dim; ++nh) {
 
-                    // �����Ƕ�ÿ�� (b, nh) �µľ������˷�
-                    // [M, K] @ [K, N] -> [M, N]
+                   
                     for (int i = 0; i < M; ++i) {
                         for (int j = 0; j < N; ++j) {
                             float sum = 0.0f;
                             for (int k = 0; k < K; ++k) {
-                                // ����ħ����ʹ�� at_4d ��͸ stride ������
-                                // ��ʹ K �� transpose ת�ù���at_4d Ҳ���ҵ���ȷ��λ��
+                                
                                 float val_a = this->at_4d(b, nh, i, k);
                                 float val_b = other.at_4d(b, nh, k, j);
                                 sum += val_a * val_b;
@@ -404,8 +395,8 @@ public:
 
         return out;
     }
-    // �������
-    Tensor view(const std::vector<int>& new_shape) const // �������������shape
+    // 改变张量形状
+    Tensor view(const std::vector<int>& new_shape) const 
     {
         int current_size = 1;
         for (int s : this->shape)
@@ -431,7 +422,7 @@ public:
         return out;
     }
 
-    // �����
+    // 激活函数
 
     Tensor tanh() const
     {
@@ -448,24 +439,20 @@ public:
     {
         int ndim = shape.size();
 
-        // 1. ������������ (���� -1 �������һά)
+       
         if (axis < 0) axis += ndim;
 
-        // 2. Ŀǰֻ֧�ֶԡ����һά����� (Softmax/LayerNorm ����)
+       
         if (axis != ndim - 1) {
             std::cerr << "Sum Error: Currently only supports summing over the LAST dimension!" << std::endl;
             exit(1);
         }
 
-        // 3. ��������״
-        // ����ά�������䣬�����һά��� 1 (KeepDim=True)
+        
         std::vector<int> out_shape = this->shape;
         out_shape[axis] = 1;
         Tensor out(out_shape);
 
-        // =================================================
-        //  ·�� A: 2D ��� [rows, cols] -> [rows, 1]
-        // =================================================
         if (ndim == 2)
         {
             int rows = shape[0];
@@ -479,28 +466,26 @@ public:
                 out.at(i, 0) = total;
             }
         }
-        // =================================================
-        //  ·�� B: 4D ��� [B, NH, T, D] -> [B, NH, T, 1]
-        // =================================================
+       
         else if (ndim == 4)
         {
             int B = shape[0];
             int NH = shape[1];
             int T = shape[2];
-            int D = shape[3]; // ���һά
+            int D = shape[3]; 
 
-            // ����ǰ��ά
+            
             for (int b = 0; b < B; ++b) {
                 for (int nh = 0; nh < NH; ++nh) {
                     for (int t = 0; t < T; ++t) {
 
                         float total = 0.0f;
-                        // �����һά�ۼ�
+                        
                         for (int d = 0; d < D; ++d) {
                             total += this->at_4d(b, nh, t, d);
                         }
 
-                        // ������ (���һά������ 0)
+                        
                         out.at_4d(b, nh, t, 0) = total;
                     }
                 }
@@ -514,7 +499,7 @@ public:
         return out;
     }
 
-    //��һ��
+    
 
     Tensor softmax(int axis = -1) const
     {
@@ -525,7 +510,7 @@ public:
         return exps / sum;
     }
 
-    // GPT�ļ����
+    // GPT的激活函数
     Tensor GELU() const
     {
         Tensor out(this->shape);
@@ -540,8 +525,8 @@ public:
         return out;
     }
 
-    // ���һ��  �����һά���в���
-    Tensor LayerNorm(const Tensor& gamma, const Tensor& beta) const // gamma ���Ų���  beta ƫ�Ʋ���
+    // 层归一化函数
+    Tensor LayerNorm(const Tensor& gamma, const Tensor& beta) const 
     {
         Tensor out(this->shape);
 
@@ -554,7 +539,7 @@ public:
         {
             int offset = i * D; // �ҵ�ÿһ�е���ʼλ��
 
-            // ���ֵ mean
+            //  mean
             float sum = 0.0f;
             for (int j = 0; j < D; ++j)
             {
@@ -563,7 +548,7 @@ public:
 
             float mean = sum / D;
 
-            // �󷽲�
+            
             float sum_sq_diff = 0.0f;
             for (int j = 0; j < D; ++j)
             {
@@ -573,11 +558,9 @@ public:
 
             float variance = sum_sq_diff / D;
 
-            // ׼����׼��ϵ��
 
-            float inv_std = 1.0f / std::sqrt(variance + eps); // sqrt ����ƽ����
+            float inv_std = 1.0f / std::sqrt(variance + eps); // sqrt
 
-            // ��һ��
 
             for (int j = 0; j < D; ++j)
             {
@@ -590,7 +573,7 @@ public:
         return out;
     }
 
-    Tensor Transpose(int dim0, int dim1) const // ������Ҫ������ά��
+    Tensor Transpose(int dim0, int dim1) const // 张量维度转置
     {
         Tensor out = *this;
         int ndim = out.shape.size();
@@ -600,15 +583,15 @@ public:
         if (dim1 < 0)
             dim1 += ndim;
 
-        if (dim0 >= ndim || dim1 >= ndim)  //�ٽ���
+        if (dim0 >= ndim || dim1 >= ndim) 
         {
             std::cerr << "Error: Transpose dim out of bounds!" << std::endl;
             exit(1);
         }
 
-        std::swap(out.shape[dim0], out.shape[dim1]); // ������״
+        std::swap(out.shape[dim0], out.shape[dim1]);
 
-        std::swap(out.strides[dim0], out.strides[dim1]); // ��������
+        std::swap(out.strides[dim0], out.strides[dim1]);
 
         return out;
     }
@@ -630,9 +613,6 @@ public:
         return data[offset];
     }
 
-    // ---------------------------------------------------------
-    //  Contiguous: �ڴ������� (��� + ����)
-    // ---------------------------------------------------------
     Tensor contiguous() const {
         // 1. ����һ����״һ����������
         // ע�⣺�������Ĺ��캯�����Զ����������׼�ġ������ġ�strides
