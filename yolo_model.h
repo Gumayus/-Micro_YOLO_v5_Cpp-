@@ -14,6 +14,7 @@
 #include <cfloat>
 #include <omp.h>
 #include <immintrin.h>
+#include <cstdint>
 
 struct Detection
 {
@@ -966,7 +967,7 @@ public:
     }
 };
 
-Tensor im2col(const Tensor &input, int k_h, int k_w, int stride = 1, int pad = 0)
+inline Tensor im2col(const Tensor &input, int k_h, int k_w, int stride = 1, int pad = 0)
 {
     int N = input.shape[0];
     int C = input.shape[1];
@@ -1023,7 +1024,7 @@ Tensor im2col(const Tensor &input, int k_h, int k_w, int stride = 1, int pad = 0
 }
 
 // 卷积函数
-Tensor conv2d(const Tensor &input, const Tensor &weight, const Tensor &bias, int stride = 1, int pad = 0)
+inline Tensor conv2d(const Tensor &input, const Tensor &weight, const Tensor &bias, int stride = 1, int pad = 0)
 {
     int N = input.shape[0];
     int FN = weight.shape[0]; // 滤波器的数量
@@ -1065,7 +1066,7 @@ Tensor conv2d(const Tensor &input, const Tensor &weight, const Tensor &bias, int
 }
 
 // 池化函数 :找到卷积核覆盖区域中的最大值，同时记录最大值的位置，将原图尺寸缩小
-Tensor max_pool2d(const Tensor &input, int pool_h, int pool_w, int stride = 2, int pad = 0)
+inline Tensor max_pool2d(const Tensor &input, int pool_h, int pool_w, int stride = 2, int pad = 0)
 {
     int N = input.shape[0];
     int C = input.shape[1];
@@ -1123,3 +1124,165 @@ Tensor max_pool2d(const Tensor &input, int pool_h, int pool_w, int stride = 2, i
     }
     return out;
 }
+
+class QTensor
+{
+public:
+    std::vector<int8_t> data;
+    std::vector<int> shape;
+
+    // 量化元数据
+
+    float scale;
+    int32_t zero_point;
+
+    QTensor(std::vector<int> s, float sc, int32_t zp)
+        : shape(s), scale(sc), zero_point(zp)
+    {
+        int size = 1;
+        for (int d : shape)
+        {
+            size *= d;
+        }
+
+        data.resize(size);
+    }
+
+    // 量化和反量化
+    static QTensor from_float(const Tensor &t, float scale, int32_t zero_point)
+    {
+        QTensor qt(t.shape, scale, zero_point);
+        for (int i = 0; i < t.data.size(); i++)
+        {
+            float val = t.data[i];
+            int32_t q = std::round(val / scale + zero_point);
+
+            if (q < -128)
+                q = -128;
+            if (q > 127)
+                q = 127;
+
+            qt.data[i] = (int8_t)q;
+        }
+
+        return qt;
+    }
+
+    Tensor dequantize() const
+    {
+        Tensor t(shape);
+        for (int i = 0; i < t.data.size(); i++)
+        {
+            int32_t q = (int32_t)this->data[i];
+            float val = (q - zero_point) * scale;
+
+            t.data[i] = val;
+        }
+
+        return t;
+    }
+};
+
+// 全整数卷积算子
+class QuantizedConv
+{
+public:
+    // 量化后的模型权重和偏置
+
+    std::vector<int8_t> weight_q;
+    std::vector<int32_t> bias_q;
+
+    // 量化参数
+    float input_scale, weight_scale, output_scale;
+    int32_t input_zero, output_zero;
+
+    // 卷积参数
+    int in_ch, out_ch, k, s, p;
+
+    QuantizedConv(int in_c, int out_c, int kernel, int stride, int padding) : in_ch(in_c), out_ch(out_c), k(kernel), s(stride), p(padding)
+    {
+        weight_q.resize(out_ch * in_ch * k * k, 0);
+        bias_q.resize(out_ch, 0);
+
+        // 默认量化参数
+        input_scale = 1.0f;
+        weight_scale = 1.0f;
+        output_scale = 1.0f;
+
+        output_zero = 0;
+    }
+
+    QTensor forward(const QTensor &input)
+    {
+        int N = input.shape[0];
+        int H_in = input.shape[2];
+        int W_in = input.shape[3];
+
+        int H_out = (H_in + 2 * p - k) / s + 1;
+        int W_out = (W_in + 2 * p - k) / s + 1;
+
+        QTensor output({N, out_ch, H_out, W_out}, output_scale, output_zero);
+
+        float M = (input_scale * weight_scale) / output_scale;
+
+        for (int n = 0; n < N; n++)
+        {
+            for (int oc = 0; oc < out_ch; oc++)
+            {
+                for (int ht = 0; ht < H_out; ht++)
+                {
+                    for (int wt = 0; wt < W_out; wt++)
+                    {
+                        int32_t acc = 0;
+                        for (int ic = 0; ic < in_ch; ic++)
+                        {
+                            for (int kh = 0; kh < k; kh++)
+                            {
+                                for (int kw = 0; kw < k; kw++)
+                                {
+                                    // 计算输入坐标
+                                    int ih = ht * s + kh - p;
+                                    int iw = wt * s + kw - p;
+
+                                    int32_t val_in_32 = 0;
+
+                                    // 处理边界填充
+                                    if (ih >= 0 && ih < H_in && iw >= 0 && iw < W_in)
+                                    {
+                                        int in_dex = ((n * in_ch + ic) * H_in + ih) * W_in + iw;
+                                        val_in_32 = (int32_t)input.data[in_dex];
+                                    }
+
+                                    else
+                                    {
+                                        val_in_32 = input_zero;
+                                    }
+
+                                    // 获取权重
+                                    int w_idx = ((oc * in_ch + ic) * k + kh) * k + kw;
+                                    int32_t val_w_32 = weight_q[w_idx];
+
+                                    acc += (val_in_32 - input_zero) * val_w_32;
+                                }
+                            }
+                        }
+
+                        acc += bias_q[oc];
+
+                        int32_t q_out = std::round(acc * M + output_zero);
+
+                        if (q_out < -128)
+                            q_out = -128;
+                        if (q_out > 127)
+                            q_out = 127;
+
+                        int out_idx = ((n * out_ch + oc) * H_out + ht) * W_out + wt;
+                        output.data[out_idx] = q_out;
+                    }
+                }
+            }
+        }
+
+        return output;
+    }
+};
