@@ -43,6 +43,25 @@
 ![Kalman Tracking Result](assets/kalman_result.png)
 
 ---
+## 📡 感知与追踪 (Perception & Tracking) 🎯
+
+在 YOLOv5 检测的基础上，实现了基于 **线性卡尔曼滤波 (Linear Kalman Filter)** 的单目标追踪闭环，解决了检测抖动和短时遮挡问题。
+
+### ✨ 核心技术 (Tech Stack)
+*   **State Estimation**: 构建 4D 状态向量 `[x, y, vx, vy]^T`，实现匀速运动模型 (CV Model) 的惯性预测。
+*   **Sensor Fusion**: 
+    *   **Predict**: 基于物理模型预测下一帧位置（解决 YOLO 丢帧/遮挡）。
+    *   **Update**: 利用 YOLO 观测值 $(x, y)$ 修正预测，通过 $K$ 增益平衡观测噪声与过程噪声。
+*   **HPC Kernel**: 
+    *   卡尔曼核心算子（矩阵乘、加、求逆）全部调用手搓的 `MicroTensor` 库。
+    *   针对小矩阵运算（4x4）修复了 AVX2 内存越界问题，实现了鲁棒的算子调度。
+
+### 📊 实测效果 (Live Demo)
+在 WSL2 (CPU Only) 环境下，实现了 **Detection + Tracking** 的全链路闭环。
+*   **Green Box**: YOLOv5 原始检测（存在抖动）。
+*   **Red Cross**: Kalman 滤波后的估计位置（平滑、抗干扰）。
+
+![Tracking Demo](assets/tracking_demo.png)
 
 ## 🛠️ 构建与运行 (Build & Run)
 

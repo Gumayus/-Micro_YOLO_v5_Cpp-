@@ -859,24 +859,27 @@ public:
         size_t n = this->data.size();
         size_t i = 0;
         // AVX2指令集加速
-        for (; i <= n - 8; i += 8)
+        if(n>=8)
         {
-            // 搬运数据到256位寄存器
-            __m256 va = _mm256_loadu_ps(pA + i);
-            __m256 vb = _mm256_loadu_ps(pB + i);
+              for (; i <= n - 8; i += 8)
+            {
+                // 搬运数据到256位寄存器
+                __m256 va = _mm256_loadu_ps(pA + i);
+                __m256 vb = _mm256_loadu_ps(pB + i);
 
-            // 启用8路并行加法
-            __m256 vsum = _mm256_add_ps(va, vb);
+                // 启用8路并行加法
+                __m256 vsum = _mm256_add_ps(va, vb);
 
-            // 回收内存
-            _mm256_storeu_ps(pOut + i, vsum);
+                // 回收内存
+                _mm256_storeu_ps(pOut + i, vsum);
+            }
         }
 
-        for (; i < n; i++)
-        {
-            pOut[i] = pA[i] + pB[i];
-        }
-
+          for (; i < n; i++)
+         {
+             pOut[i] = pA[i] + pB[i];
+         }
+        
         return result;
     }
 
@@ -1201,35 +1204,6 @@ inline Tensor Tensor::Inverse2D(const Tensor &mat)
 
     return inv;
 }
-
-class KalmanFilter
-{
-public:
-    // dt : 时间间隔
-    KalmanFilter(float dt = 0.033f);
-
-    // 状态预测
-    void predict();
-
-    // 状态更新 观测值z [2x1]
-    void update(const Tensor &z);
-
-    // 获取当前状态估计值 [x,y,vx,vy]
-    Tensor getState() const { return *X; }
-
-private:
-    // 七大矩阵
-    std::unique_ptr<Tensor> X; // 状态向量 [4x1]
-    std::unique_ptr<Tensor> P; // 协方差矩阵 [4x4],描述状态估计的不确定性
-    std::unique_ptr<Tensor> F; // 状态转移矩阵 [4x4],描述系统状态如何随时间变化
-    std::unique_ptr<Tensor> H; // 观测矩阵 [2x4],描述如何从状态空间映射到观测空间
-    std::unique_ptr<Tensor> Q; // 过程噪声协方差矩阵 [4x4],描述系统过程中的不确定性
-    std::unique_ptr<Tensor> R; // 测量噪声协方差矩阵 [2x2],描述观测中的不确定性
-    std::unique_ptr<Tensor> I; // 单位矩阵 [4x4]
-
-    // 初始化所有矩阵
-    void init_matrices(float dt);
-};
 
 class QTensor
 {

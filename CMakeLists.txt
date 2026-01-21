@@ -54,3 +54,15 @@ add_executable(sim_kalman
     yolo_model.h
 )
 target_compile_options(sim_kalman PRIVATE -O3 -mavx2)
+
+add_executable(video_track 
+    video_track.cpp 
+    MicroKalman.cpp 
+    yolo_model_v5.h
+    yolo_model.h
+    
+    # 注意：如果你的 YoloV5 实现是在 .cpp 里，记得加 YoloV5.cpp
+    # 如果是 header-only，就不用加
+)
+target_compile_options(video_track PRIVATE -O3 -mavx2 -fopenmp)
+target_link_libraries(video_track ${OpenCV_LIBS})
