@@ -1,6 +1,4 @@
-#pragma once
-#include <opencv2/opencv.hpp>
-#include <vector>
+#pragma one
 #include <iostream>
 #include <memory>
 #include <cmath>
@@ -12,43 +10,13 @@
 #include <cstdio>
 #include <cstring>
 #include <cfloat>
-#include <omp.h>
-#include <immintrin.h>
-#include <cstdint>
-
-struct Detection
-{
-    int class_id;
-    float confidence;
-    cv::Rect box;
-};
-
-class YoloV5Detector
-{
-public:
-    // 构造函数
-    YoloV5Detector(const std::string &modelPath, bool isCuda = false);
-    // 检测函数
-    std::vector<Detection> detect(cv::Mat &frame, bool use_quant = false);
-
-private:
-    // 参数
-    const float INPUT_W = 640.0;
-    const float INPUT_H = 640.0;
-    const float SCORE_THRES = 0.15f; // 置信度阈值
-    const float NMS_THRES = 0.45f;   // NMS 阈值
-
-    cv::dnn::Net net;
-
-    // 预处理Letterbox (保持宽高比例)
-    cv::Mat formatToSquare(const cv::Mat &source);
-};
+#include <memory>
 
 inline float random_normal()
 {
     static std::random_device rd;
     static std::mt19937 gen(rd());
-    static std::normal_distribution<float> dis(0.0f, 1.0f); // 标准正态分布，均值为0，标准差为1
+    static std::normal_distribution<float> dis(0.0f, 1.0f); // 标准正态分布，均值为0，方差和为1
     return dis(gen);
 }
 
@@ -61,13 +29,13 @@ public:
 
     void compute_strides()
     {
-        strides.resize(shape.size()); // 将步长数组大小设置为与shape数组相同
+        strides.resize(shape.size()); // 将步长向量调整为与shape向量相同的形状
 
         int stride = 1;
         for (int i = shape.size() - 1; i >= 0; --i)
         {
             strides[i] = stride; // 设定最后一维的步长为1
-            stride *= shape[i];  // 去除最后一维后，前一个维度的步长等于当前维度的元素个数乘以前一维的步长
+            stride *= shape[i];  // 除去最后一维，其他维的步长等于当前维度的元素个数乘以前一维的步长
         }
     }
 
@@ -90,14 +58,14 @@ public:
         for (int s : shape)
             size *= s;
 
-        data.resize(size, 0.0f); // 初始化数据，每个元素为0
+        data.resize(size, 0.0f); // 初始化张量每个元素为0
 
         compute_strides();
     }
 
     void fill(float value)
     {
-        std::fill(data.begin(), data.end(), value); // 将data中的所有元素设置为value
+        std::fill(data.begin(), data.end(), value); // 将data中的所有数都设置成value
     }
 
     Tensor operator+(const Tensor &other) const
@@ -214,6 +182,7 @@ public:
     {
         int ndim = this->shape.size();
 
+        // 1. 形状完全一样 (Element-wise)
         if (this->shape == other.shape)
         {
             Tensor result(this->shape);
@@ -232,7 +201,7 @@ public:
             int cols = shape[1];
             for (int i = 0; i < rows; ++i)
             {
-                float div = other.at(i, 0); // 取除数的值
+                float div = other.at(i, 0); // 取出这一行的除数
                 for (int j = 0; j < cols; ++j)
                 {
                     result.at(i, j) = this->at(i, j) / div;
@@ -240,7 +209,7 @@ public:
             }
             return result;
         }
-        // 3. 特殊情况：4D 广播: [B, NH, T, D] / [B, NH, T, 1] (GPT Attention 场景)
+        // 3. 【新增】4D 广播: [B, NH, T, D] / [B, NH, T, 1] (GPT Attention 刚需)
         else if (ndim == 4 && other.shape.size() == 4 &&
                  other.shape[3] == 1 && // 最后一维是 1
                  this->shape[0] == other.shape[0] &&
@@ -259,9 +228,9 @@ public:
                 {
                     for (int t = 0; t < T; ++t)
                     {
-                        // 取分母 (最后一维索引0)
+                        // 取出分母 (最后一维坐标是0)
                         float div = other.at_4d(b, nh, t, 0);
-                        // 将一行的所有元素除以同一个值
+                        // 这一行的所有数都除以它
                         for (int d = 0; d < D; ++d)
                         {
                             result.at_4d(b, nh, t, d) = this->at_4d(b, nh, t, d) / div;
@@ -300,8 +269,8 @@ public:
     // 嵌入层
     static Tensor Embedding(const std::vector<int> &input_indices, const Tensor &weight)
     {
-        int N = input_indices.size();    // 一次批量查询的字符数
-        int embed_dim = weight.shape[1]; // 嵌入层权重维度
+        int N = input_indices.size();    // 一次性查询的字符
+        int embed_dim = weight.shape[1]; // 嵌入层的权重参数
 
         Tensor out({N, embed_dim});
 
@@ -326,7 +295,7 @@ public:
     {
         int ndim = this->shape.size();
 
-        // 1. 维度检查
+        // 1. 基础检查
         if (ndim != other.shape.size())
         {
             std::cerr << "MatMul Error: Ranks must match! " << ndim << " vs " << other.shape.size() << std::endl;
@@ -338,14 +307,14 @@ public:
             exit(1);
         }
 
-        // 2. 维度提取 (假设形状为 A[..., M, K] @ B[..., K, N])
-        // 无论是 2D 还是 4D，最后两维都是矩阵乘法的核心
+        // 2. 维度提取 (适用于 A[..., M, K] @ B[..., K, N])
+        // 无论 2D 还是 4D，最后两维永远是矩阵乘法的核心
         int M = this->shape[ndim - 2];
         int K = this->shape[ndim - 1];
         int K_other = other.shape[ndim - 2];
         int N = other.shape[ndim - 1];
 
-        // 3. K 维度必须相等
+        // 3. K 维度必须对齐
         if (K != K_other)
         {
             std::cerr << "MatMul Shape Mismatch: "
@@ -353,8 +322,8 @@ public:
             exit(1);
         }
 
-        // 4. 合并 Batch 维度 (前 N-2 维必须一致)
-        // 确定输出形状
+        // 4. 检查 Batch 维度 (前 N-2 维必须一致)
+        // 构造结果形状
         std::vector<int> out_shape = this->shape;
         out_shape[ndim - 1] = N; // 最后一维变成 N
 
@@ -367,15 +336,15 @@ public:
             }
         }
 
-        // 5. 创建输出张量
+        // 5. 创建结果张量
         Tensor out(out_shape);
 
         // =================================================
-        //  情况 A: 2D 矩阵乘法 (Linear 层)
+        //  路径 A: 2D 矩阵乘法 (Linear 层)
         // =================================================
         if (ndim == 2)
         {
-            // OpenMP 并行计算 (如果系统支持)
+// OpenMP 并行加速 (如果编译器支持)
 #pragma omp parallel for collapse(2)
             for (int i = 0; i < M; ++i)
             {
@@ -384,7 +353,7 @@ public:
                     float sum = 0.0f;
                     for (int k = 0; k < K; ++k)
                     {
-                        // 使用 at(i, j) 自动计算 strides
+                        // 使用 at(i, j) 自动处理 strides
                         sum += this->at(i, k) * other.at(k, j);
                     }
                     out.at(i, j) = sum;
@@ -392,7 +361,7 @@ public:
             }
         }
         // =================================================
-        //  情况 B: 4D 批量矩阵乘法 (Attention 层)
+        //  路径 B: 4D 批量矩阵乘法 (Attention 层)
         //  形状: [Batch, Head, Seq, Dim]
         // =================================================
         else if (ndim == 4)
@@ -400,14 +369,14 @@ public:
             int B_dim = shape[0];  // Batch Size
             int NH_dim = shape[1]; // Num Heads
 
-            // 嵌套循环太多？其实前两维是"批量"维度，后两维是"计算"维度
-#pragma omp parallel for collapse(2) // 并行化每个 Batch 和 Head
+// 四重循环太深？其实前两维是“并行”的，后三维是“计算”
+#pragma omp parallel for collapse(2) // 并行处理每个 Batch 和 Head
             for (int b = 0; b < B_dim; ++b)
             {
                 for (int nh = 0; nh < NH_dim; ++nh)
                 {
 
-                    // 接下来对每个 (b, nh) 下的矩阵做乘法
+                    // 这里是对每个 (b, nh) 下的矩阵做乘法
                     // [M, K] @ [K, N] -> [M, N]
                     for (int i = 0; i < M; ++i)
                     {
@@ -416,8 +385,8 @@ public:
                             float sum = 0.0f;
                             for (int k = 0; k < K; ++k)
                             {
-                                // 这里魔法：使用 at_4d 偷看 stride 规律
-                                // 即使 K 维有 transpose 转置，at_4d 也能找到正确位置
+                                // 核心魔法：使用 at_4d 穿透 stride 的迷雾
+                                // 即使 K 被 transpose 转置过，at_4d 也能找到正确的位置
                                 float val_a = this->at_4d(b, nh, i, k);
                                 float val_b = other.at_4d(b, nh, k, j);
                                 sum += val_a * val_b;
@@ -431,9 +400,8 @@ public:
 
         return out;
     }
-
-    // 重排形状
-    Tensor view(const std::vector<int> &new_shape) const // 传入你想变成的shape
+    // 张量捏合
+    Tensor view(const std::vector<int> &new_shape) const // 重新捏合张量的shape
     {
         int current_size = 1;
         for (int s : this->shape)
@@ -476,25 +444,25 @@ public:
     {
         int ndim = shape.size();
 
-        // 1. 处理负数轴 (例如 -1 表示最后一维)
+        // 1. 处理负数索引 (比如 -1 代表最后一维)
         if (axis < 0)
             axis += ndim;
 
-        // 2. 目前只支持对"最后一维"求和 (Softmax/LayerNorm 场景)
+        // 2. 目前只支持对“最后一维”求和 (Softmax/LayerNorm 刚需)
         if (axis != ndim - 1)
         {
             std::cerr << "Sum Error: Currently only supports summing over the LAST dimension!" << std::endl;
             exit(1);
         }
 
-        // 3. 确定输出形状
-        // 其他维度保持不变，最后一维变为 1 (KeepDim=True)
+        // 3. 构造结果形状
+        // 保持维度数不变，但最后一维变成 1 (KeepDim=True)
         std::vector<int> out_shape = this->shape;
         out_shape[axis] = 1;
         Tensor out(out_shape);
 
         // =================================================
-        //  情况 A: 2D 求和 [rows, cols] -> [rows, 1]
+        //  路径 A: 2D 情况 [rows, cols] -> [rows, 1]
         // =================================================
         if (ndim == 2)
         {
@@ -512,7 +480,7 @@ public:
             }
         }
         // =================================================
-        //  情况 B: 4D 求和 [B, NH, T, D] -> [B, NH, T, 1]
+        //  路径 B: 4D 情况 [B, NH, T, D] -> [B, NH, T, 1]
         // =================================================
         else if (ndim == 4)
         {
@@ -530,13 +498,13 @@ public:
                     {
 
                         float total = 0.0f;
-                        // 对最后一维累加
+                        // 沿最后一维累加
                         for (int d = 0; d < D; ++d)
                         {
                             total += this->at_4d(b, nh, t, d);
                         }
 
-                        // 存入结果 (最后一维索引 0)
+                        // 存入结果 (最后一维坐标是 0)
                         out.at_4d(b, nh, t, 0) = total;
                     }
                 }
@@ -551,7 +519,7 @@ public:
         return out;
     }
 
-    // Softmax
+    // 归一化
 
     Tensor softmax(int axis = -1) const
     {
@@ -577,7 +545,7 @@ public:
         return out;
     }
 
-    // 层归一化 对最后一维进行归一化
+    // 层归一化  对最后一维进行操作
     Tensor LayerNorm(const Tensor &gamma, const Tensor &beta) const // gamma 缩放参数  beta 偏移参数
     {
         Tensor out(this->shape);
@@ -591,7 +559,7 @@ public:
         {
             int offset = i * D; // 找到每一行的起始位置
 
-            // 计算均值 mean
+            // 求均值 mean
             float sum = 0.0f;
             for (int j = 0; j < D; ++j)
             {
@@ -600,19 +568,19 @@ public:
 
             float mean = sum / D;
 
-            // 计算方差
+            // 求方差
             float sum_sq_diff = 0.0f;
             for (int j = 0; j < D; ++j)
             {
-                float diff = data[offset + j] - mean;
-                sum_sq_diff += diff * diff;
+                float dff = data[offset + j] - mean;
+                sum_sq_diff += dff * dff;
             }
 
             float variance = sum_sq_diff / D;
 
-            // 计算标准化系数
+            // 准备标准化系数
 
-            float inv_std = 1.0f / std::sqrt(variance + eps); // sqrt 平方根
+            float inv_std = 1.0f / std::sqrt(variance + eps); // sqrt 计算平方根
 
             // 归一化
 
@@ -627,7 +595,7 @@ public:
         return out;
     }
 
-    Tensor Transpose(int dim0, int dim1) const // 需要交换的两个维度
+    Tensor Transpose(int dim0, int dim1) const // 传入需要交换的维度
     {
         Tensor out = *this;
         int ndim = out.shape.size();
@@ -637,7 +605,7 @@ public:
         if (dim1 < 0)
             dim1 += ndim;
 
-        if (dim0 >= ndim || dim1 >= ndim) // 边界检查
+        if (dim0 >= ndim || dim1 >= ndim) // 临界检查
         {
             std::cerr << "Error: Transpose dim out of bounds!" << std::endl;
             exit(1);
@@ -659,7 +627,7 @@ public:
         return data[offset];
     }
 
-    // 只读版本
+    // 只读版
     const float &at_4d(int i0, int i1, int i2, int i3) const
     {
         int offset = i0 * strides[0] +
@@ -675,10 +643,10 @@ public:
     Tensor contiguous() const
     {
         // 1. 创建一个形状一样的新张量
-        // 注意：新张量的构造函数会自动计算标准的、连续的 strides
+        // 注意：新张量的构造函数会自动计算出“标准的、连续的”strides
         Tensor out(this->shape);
 
-        // 2. 目前只处理 4D 张量 (GPT 专用简化版)
+        // 2. 只有 4D 张量才处理 (GPT 专用简化版)
         if (shape.size() == 4)
         {
             int B = shape[0];
@@ -686,7 +654,7 @@ public:
             int T = shape[2];
             int HS = shape[3];
 
-            // 四重循环复制每一个元素
+            // 四重循环遍历每一个点
             for (int b = 0; b < B; ++b)
             {
                 for (int nh = 0; nh < NH; ++nh)
@@ -695,9 +663,9 @@ public:
                     {
                         for (int hs = 0; hs < HS; ++hs)
                         {
-                            // 这里有魔法：
-                            // out.at_4d 得到新张量的标准 strides (顺序读写)
-                            // this->at_4d 得到当前张量的 strides (可能乱序)
+                            // 【核心魔法】
+                            // out.at_4d 用的是新张量的标准 strides (连续写)
+                            // this->at_4d 用的是当前张量的乱 strides (跳着读)
                             out.at_4d(b, nh, t, hs) = this->at_4d(b, nh, t, hs);
                         }
                     }
@@ -706,8 +674,8 @@ public:
         }
         else
         {
-            // 如果不是 4D 张量，直接拷贝 (偷懒，因为 GPT 只需要 4D 张量)
-            // 严谨的话应该实现通用的递归复制
+            // 如果不是 4D，暂时直接拷贝 (偷懒做法，反正 GPT 里主要是 4D 需要这个)
+            // 严谨点应该报错或者写通用递归
             out = *this;
             std::cerr << "Warning: contiguous only implemented for 4D tensors!" << std::endl;
         }
@@ -715,7 +683,7 @@ public:
         return out;
     }
 
-    // 掩码函数  用于注意力机制中的因果掩码
+    // 掩码函数  构造下三角矩阵用于聚合信息
 
     void apply_causal_mask()
     {
@@ -737,7 +705,7 @@ public:
                 {
                     for (int j = 0; j < T_col; ++j)
                     {
-                        // 下三角逻辑：不能看到未来
+                        // 核心逻辑：不能看未来
                         if (j > i)
                         {
                             at_4d(b, nh, i, j) = neg_inf;
@@ -763,14 +731,10 @@ public:
     Tensor SiLU() const
     {
         Tensor result(this->shape);
-        size_t size = this->data.size();
-// 开启多线程
-#pragma omp parallel for
         for (size_t i = 0; i < result.data.size(); ++i)
         {
             float val = this->data[i];
-            float sigmoid = 1.0f / (1.0f + std::exp(-val));
-            result.data[i] = val * sigmoid;
+            result.data[i] = 1.0f / (1.0f + std::exp(-val)) * val;
         }
 
         return result;
@@ -852,82 +816,9 @@ public:
         }
 
         Tensor result(this->shape);
-        // 获取原始指针
-        const float *pA = this->data.data();
-        const float *pB = other.data.data();
-        float *pOut = result.data.data();
-        size_t n = this->data.size();
-        size_t i = 0;
-        // AVX2指令集加速
-        for (; i <= n - 8; i += 8)
+        for (size_t i = 0; i < data.size(); i++)
         {
-            // 搬运数据到256位寄存器
-            __m256 va = _mm256_loadu_ps(pA + i);
-            __m256 vb = _mm256_loadu_ps(pB + i);
-
-            // 启用8路并行加法
-            __m256 vsum = _mm256_add_ps(va, vb);
-
-            // 回收内存
-            _mm256_storeu_ps(pOut + i, vsum);
-        }
-
-        for (; i < n; i++)
-        {
-            pOut[i] = pA[i] + pB[i];
-        }
-
-        return result;
-    }
-
-    // 模拟 Int8 量化 (Float -> Int8 -> Float)
-    // 目的：感受精度损失，预估上板效果
-    Tensor FakeQuantizeInt8() const
-    {
-        Tensor result(this->shape);
-
-        // 1. 找最大最小值 (寻找量化范围)
-        float min_val = 1e9f;
-        float max_val = -1e9f;
-        for (float v : data)
-        {
-            if (v < min_val)
-                min_val = v;
-            if (v > max_val)
-                max_val = v;
-        }
-
-        // 2. 计算缩放系数 (Scale) 和 零点 (Zero Point)
-        // 我们要把 [min, max] 映射到 [-128, 127] (255个阶梯)
-        float range = max_val - min_val;
-        if (range == 0)
-            range = 1.0f; // 防止除0
-
-        float scale = range / 255.0f;
-        float zero_point = -128.0f - (min_val / scale);
-
-// 3. 逐元素量化再反量化
-// 也可以加上 OpenMP 加速！
-#pragma omp parallel for
-        for (size_t i = 0; i < data.size(); ++i)
-        {
-            float real_val = data[i];
-
-            // 量化: float -> int
-            // round(x / S + Z)
-            int q = std::round(real_val / scale + zero_point);
-
-            // 截断 (Clamp) 到 [-128, 127]
-            if (q < -128)
-                q = -128;
-            if (q > 127)
-                q = 127;
-
-            // 反量化: int -> float (这就不是原来的 float 了，是阶梯状的)
-            // (q - Z) * S
-            float deq_val = (q - zero_point) * scale;
-
-            result.data[i] = deq_val;
+            result.data[i] = data[i] + other.data[i];
         }
 
         return result;
@@ -1020,7 +911,7 @@ inline Tensor im2col(const Tensor &input, int k_h, int k_w, int stride = 1, int 
     int H = input.shape[2];
     int W = input.shape[3];
 
-    // 计算输出特征图尺寸
+    // 计算输出图像尺寸
     int out_h = (H + 2 * pad - k_h) / stride + 1;
     int out_w = (W + 2 * pad - k_w) / stride + 1;
 
@@ -1069,21 +960,21 @@ inline Tensor im2col(const Tensor &input, int k_h, int k_w, int stride = 1, int 
     return col;
 }
 
-// 卷积函数
+// 卷积操作
 inline Tensor conv2d(const Tensor &input, const Tensor &weight, const Tensor &bias, int stride = 1, int pad = 0)
 {
     int N = input.shape[0];
-    int FN = weight.shape[0]; // 滤波器的数量
+    int FN = weight.shape[0]; // 卷积核的数量
 
     // weight.shape[1] 表示通道数 C
     int KH = weight.shape[2];
     int KW = weight.shape[3];
 
     Tensor col = im2col(input, KH, KW, stride, pad); // [N*out_h*out_w, C*KH*KW]
-    col = col.Transpose(1, 0);                       // 转置为 [C*KH*KW, N*out_h*out_w] ,方便矩阵乘法
+    col = col.Transpose(1, 0);                       // 转置为 [C*KH*KW, N*out_h*out_w] ,配合矩阵乘法
 
-    int K_dim = weight.shape[1] * KH * KW;
-    Tensor weight_flat = weight.view({FN, K_dim});
+    int K_idm = weight.shape[1] * KH * KW;
+    Tensor weight_flat = weight.view({FN, K_idm});
 
     Tensor out_flat = weight_flat.MatMul(col); // [FN, N*out_h*out_w]
 
@@ -1099,7 +990,7 @@ inline Tensor conv2d(const Tensor &input, const Tensor &weight, const Tensor &bi
         }
     }
 
-    // 计算输出特征图尺寸
+    // 计算输出图像尺寸
 
     int out_h = (input.shape[2] + 2 * pad - KH) / stride + 1;
     int out_w = (input.shape[3] + 2 * pad - KW) / stride + 1;
@@ -1111,7 +1002,7 @@ inline Tensor conv2d(const Tensor &input, const Tensor &weight, const Tensor &bi
     return out;
 }
 
-// 池化函数 :找到卷积核覆盖区域中的最大值，同时记录最大值的位置，将原图尺寸缩小
+// 池化操作 :找到卷积核覆盖区域的最大特征值，同时保留该特征值的位置，将原图像尺寸缩小
 inline Tensor max_pool2d(const Tensor &input, int pool_h, int pool_w, int stride = 2, int pad = 0)
 {
     int N = input.shape[0];
@@ -1119,7 +1010,7 @@ inline Tensor max_pool2d(const Tensor &input, int pool_h, int pool_w, int stride
     int H = input.shape[2];
     int W = input.shape[3];
 
-    // /// 1. 输出尺寸公式 (注意 2*pad)
+    // /// 1. 修正输出尺寸公式 (加上 2*pad)
     int out_h = (H + 2 * pad - pool_h) / stride + 1;
     int out_w = (W + 2 * pad - pool_w) / stride + 1;
 
@@ -1135,7 +1026,7 @@ inline Tensor max_pool2d(const Tensor &input, int pool_h, int pool_w, int stride
                 {
                     float max_val = -FLT_MAX;
 
-                    // 遍历池化窗口
+                    // 遍历池化核
                     for (int ki = 0; ki < pool_h; ki++)
                     {
                         for (int kj = 0; kj < pool_w; kj++)
@@ -1145,15 +1036,15 @@ inline Tensor max_pool2d(const Tensor &input, int pool_h, int pool_w, int stride
                             int col_pos = j * stride + kj - pad;
 
                             float val;
-                            // /// 3. 边界处理 (Hardcore Padding Logic)
-                            // 如果坐标超出原图范围，则视为负无穷
+                            // /// 3. 边界检查 (Hardcore Padding Logic)
+                            // 如果坐标超出了原图范围，就认为它是负无穷
                             if (r < 0 || r >= H || col_pos < 0 || col_pos >= W)
                             {
                                 val = -FLT_MAX;
                             }
                             else
                             {
-                                // 只有在范围内，才去取内存，否则 SegFault 警告
+                                // 只有在范围内，才敢去读内存，否则由 SegFault 伺候
                                 val = input.at_4d(n, c, r, col_pos);
                             }
 
@@ -1229,166 +1120,4 @@ private:
 
     // 初始化所有矩阵
     void init_matrices(float dt);
-};
-
-class QTensor
-{
-public:
-    std::vector<int8_t> data;
-    std::vector<int> shape;
-
-    // 量化元数据
-
-    float scale;
-    int32_t zero_point;
-
-    QTensor(std::vector<int> s, float sc, int32_t zp)
-        : shape(s), scale(sc), zero_point(zp)
-    {
-        int size = 1;
-        for (int d : shape)
-        {
-            size *= d;
-        }
-
-        data.resize(size);
-    }
-
-    // 量化和反量化
-    static QTensor from_float(const Tensor &t, float scale, int32_t zero_point)
-    {
-        QTensor qt(t.shape, scale, zero_point);
-        for (int i = 0; i < t.data.size(); i++)
-        {
-            float val = t.data[i];
-            int32_t q = std::round(val / scale + zero_point);
-
-            if (q < -128)
-                q = -128;
-            if (q > 127)
-                q = 127;
-
-            qt.data[i] = (int8_t)q;
-        }
-
-        return qt;
-    }
-
-    Tensor dequantize() const
-    {
-        Tensor t(shape);
-        for (int i = 0; i < t.data.size(); i++)
-        {
-            int32_t q = (int32_t)this->data[i];
-            float val = (q - zero_point) * scale;
-
-            t.data[i] = val;
-        }
-
-        return t;
-    }
-};
-
-// 全整数卷积算子
-class QuantizedConv
-{
-public:
-    // 量化后的模型权重和偏置
-
-    std::vector<int8_t> weight_q;
-    std::vector<int32_t> bias_q;
-
-    // 量化参数
-    float input_scale, weight_scale, output_scale;
-    int32_t input_zero, output_zero;
-
-    // 卷积参数
-    int in_ch, out_ch, k, s, p;
-
-    QuantizedConv(int in_c, int out_c, int kernel, int stride, int padding) : in_ch(in_c), out_ch(out_c), k(kernel), s(stride), p(padding)
-    {
-        weight_q.resize(out_ch * in_ch * k * k, 0);
-        bias_q.resize(out_ch, 0);
-
-        // 默认量化参数
-        input_scale = 1.0f;
-        weight_scale = 1.0f;
-        output_scale = 1.0f;
-
-        output_zero = 0;
-    }
-
-    QTensor forward(const QTensor &input)
-    {
-        int N = input.shape[0];
-        int H_in = input.shape[2];
-        int W_in = input.shape[3];
-
-        int H_out = (H_in + 2 * p - k) / s + 1;
-        int W_out = (W_in + 2 * p - k) / s + 1;
-
-        QTensor output({N, out_ch, H_out, W_out}, output_scale, output_zero);
-
-        float M = (input_scale * weight_scale) / output_scale;
-
-        for (int n = 0; n < N; n++)
-        {
-            for (int oc = 0; oc < out_ch; oc++)
-            {
-                for (int ht = 0; ht < H_out; ht++)
-                {
-                    for (int wt = 0; wt < W_out; wt++)
-                    {
-                        int32_t acc = 0;
-                        for (int ic = 0; ic < in_ch; ic++)
-                        {
-                            for (int kh = 0; kh < k; kh++)
-                            {
-                                for (int kw = 0; kw < k; kw++)
-                                {
-                                    // 计算输入坐标
-                                    int ih = ht * s + kh - p;
-                                    int iw = wt * s + kw - p;
-
-                                    int32_t val_in_32 = 0;
-
-                                    // 处理边界填充
-                                    if (ih >= 0 && ih < H_in && iw >= 0 && iw < W_in)
-                                    {
-                                        int in_dex = ((n * in_ch + ic) * H_in + ih) * W_in + iw;
-                                        val_in_32 = (int32_t)input.data[in_dex];
-                                    }
-
-                                    else
-                                    {
-                                        val_in_32 = input_zero;
-                                    }
-
-                                    // 获取权重
-                                    int w_idx = ((oc * in_ch + ic) * k + kh) * k + kw;
-                                    int32_t val_w_32 = weight_q[w_idx];
-
-                                    acc += (val_in_32 - input_zero) * val_w_32;
-                                }
-                            }
-                        }
-
-                        acc += bias_q[oc];
-
-                        int32_t q_out = std::round(acc * M + output_zero);
-
-                        if (q_out < -128)
-                            q_out = -128;
-                        if (q_out > 127)
-                            q_out = 127;
-
-                        int out_idx = ((n * out_ch + oc) * H_out + ht) * W_out + wt;
-                        output.data[out_idx] = q_out;
-                    }
-                }
-            }
-        }
-
-        return output;
-    }
 };

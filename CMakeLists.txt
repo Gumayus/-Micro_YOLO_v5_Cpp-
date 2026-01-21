@@ -40,3 +40,17 @@ target_link_libraries(yolo_bench ${OpenCV_LIBS})
 add_executable(matmul_test matmul_test.cpp)
 # 必须开 -O3，否则编译器太笨，看不出 Cache 的差距
 target_compile_options(matmul_test PRIVATE -O3)
+
+target_compile_options(matmul_test PRIVATE -O3 -mavx2 -mfma)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 -mavx2 -fopenmp")
+
+add_executable(test_quant test_quant.cpp)
+target_compile_options(test_quant PRIVATE -O3 -mavx2 -fopenmp)
+target_link_libraries(test_quant ${OpenCV_LIBS})
+add_executable(sim_kalman 
+    sim_KalmanFilter.cpp
+    MicroKalman.cpp
+    MicroKalman.h 
+    yolo_model.h
+)
+target_compile_options(sim_kalman PRIVATE -O3 -mavx2)
