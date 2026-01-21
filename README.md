@@ -24,3 +24,15 @@ mkdir build && cd build
 cmake ..
 make -j8
 ./yolo_run
+
+## 📡 感知模块 (Perception Module)
+
+为了解决边缘端检测抖动和遮挡问题，我们实现了一个轻量级的 **线性卡尔曼滤波器 (Linear Kalman Filter)**。
+
+### 仿真实验 (Simulation)
+模拟物体做匀速直线运动，叠加高斯噪声 ($\sigma=2.0$) 模拟 YOLO 检测误差。
+
+*   **红色 X**：YOLO 原始观测值（抖动剧烈）。
+*   **蓝色线**：MicroKalman 滤波结果（平滑稳定，紧跟真实轨迹）。
+
+![Kalman Tracking](assets/kalman_result.png)
