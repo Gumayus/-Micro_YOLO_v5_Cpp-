@@ -27,12 +27,18 @@ make -j8
 
 ## 📡 感知模块 (Perception Module)
 
-为了解决边缘端检测抖动和遮挡问题，我们实现了一个轻量级的 **线性卡尔曼滤波器 (Linear Kalman Filter)**。
+为了解决边缘端检测抖动、遮挡丢失及系统延迟问题，我们自主实现了一个轻量级的 **线性卡尔曼滤波器 (Linear Kalman Filter)**。
 
-### 仿真实验 (Simulation)
-模拟物体做匀速直线运动，叠加高斯噪声 ($\sigma=2.0$) 模拟 YOLO 检测误差。
+### ✨ 核心功能 (Key Features)
+*   **MicroKalman Kernel**: 基于手搓的 `MicroTensor` 矩阵库构建，不依赖 Eigen 或 OpenCV。
+*   **State Space**: 追踪 `[x, y, vx, vy]` 4维状态，实现匀速运动模型的惯性预测。
+*   **Matrix Ops**: 手动实现了 2x2 矩阵求逆、转置、加减法等底层算子。
 
-*   **红色 X**：YOLO 原始观测值（抖动剧烈）。
-*   **蓝色线**：MicroKalman 滤波结果（平滑稳定，紧跟真实轨迹）。
+### 📉 仿真实验 (Simulation Benchmark)
+模拟物体做匀速直线运动，并叠加高斯噪声 ($\sigma=2.0$) 以模拟 YOLO 的检测误差。
 
-![Kalman Tracking](assets/kalman_result.png)
+**实验图例：**
+*   ❌ **红色散点 (Measured)**: YOLO 原始观测值（抖动剧烈，模拟真实环境）。
+*   🔵 **蓝色实线 (Estimated)**: MicroKalman 滤波结果（平滑稳定，紧跟真实轨迹）。
+
+![Kalman Tracking Result](assets/kalman_result.png)
