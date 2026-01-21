@@ -7,9 +7,13 @@
 *   **HPC Optimization**: 
     *   **SIMD 加速**: 利用 AVX2 指令集（Intrinsics）重写算子。
     *   **Cache Awareness**: 优化 i-k-j 循环顺序，性能提升 30 倍。
-*   **Quantization Engine**: 自主实现 **Int8 纯整数推理内核**，支持动态校准。
+*   **Perception**: 集成轻量级 **MicroKalman** 滤波器，实现目标轨迹平滑与预测。
+*   **Quantization**: 自主实现 **Int8 纯整数推理内核**，支持动态校准。
+
+---
 
 ## 📉 量化精度分析 (Quantization Analysis)
+
 对 Stem Layer 进行了 FP32 与 Int8 的精度对齐实验。
 
 **实验结果：**
@@ -18,18 +22,13 @@
 
 ![Quantization Comparison](assets/quant_analysis.png)
 
-## 🛠️ 构建与运行 (Build & Run)
-```bash
-mkdir build && cd build
-cmake ..
-make -j8
-./yolo_run
+---
 
 ## 📡 感知模块 (Perception Module)
 
 为了解决边缘端检测抖动、遮挡丢失及系统延迟问题，我们自主实现了一个轻量级的 **线性卡尔曼滤波器 (Linear Kalman Filter)**。
 
-### ✨ 核心功能 (Key Features)
+### ✨ 核心功能
 *   **MicroKalman Kernel**: 基于手搓的 `MicroTensor` 矩阵库构建，不依赖 Eigen 或 OpenCV。
 *   **State Space**: 追踪 `[x, y, vx, vy]` 4维状态，实现匀速运动模型的惯性预测。
 *   **Matrix Ops**: 手动实现了 2x2 矩阵求逆、转置、加减法等底层算子。
@@ -42,3 +41,17 @@ make -j8
 *   🔵 **蓝色实线 (Estimated)**: MicroKalman 滤波结果（平滑稳定，紧跟真实轨迹）。
 
 ![Kalman Tracking Result](assets/kalman_result.png)
+
+---
+
+## 🛠️ 构建与运行 (Build & Run)
+
+### 1. 编译项目
+```bash
+mkdir build && cd build
+cmake ..
+make -j8
+./yolo_run
+./sim_kalman
+
+"硬件不够，算法来凑。" —— 献给 2025 全国大学生电子设计竞赛
