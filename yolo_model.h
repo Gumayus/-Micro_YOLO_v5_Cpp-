@@ -20,7 +20,20 @@ struct Detection
 {
     int class_id;
     float confidence;
-    cv::Rect box;
+    cv::Rect box; // 保留这个，方便 OpenCV 画图
+
+    // ✅ 新增：浮点数版本的中心点坐标和宽高，专门给 Kalman 使用
+    float x, y, w, h;
+
+    // 辅助函数：把检测结果同步到浮点数成员上
+    void sync()
+    {
+        // 将 cv::Rect (左上角 x,y) 转为中心点 x,y
+        w = (float)box.width;
+        h = (float)box.height;
+        x = (float)box.x + w / 2.0f;
+        y = (float)box.y + h / 2.0f;
+    }
 };
 
 class YoloV5Detector
@@ -859,9 +872,9 @@ public:
         size_t n = this->data.size();
         size_t i = 0;
         // AVX2指令集加速
-        if(n>=8)
+        if (n >= 8)
         {
-              for (; i <= n - 8; i += 8)
+            for (; i <= n - 8; i += 8)
             {
                 // 搬运数据到256位寄存器
                 __m256 va = _mm256_loadu_ps(pA + i);
@@ -875,11 +888,11 @@ public:
             }
         }
 
-          for (; i < n; i++)
-         {
-             pOut[i] = pA[i] + pB[i];
-         }
-        
+        for (; i < n; i++)
+        {
+            pOut[i] = pA[i] + pB[i];
+        }
+
         return result;
     }
 
@@ -1366,3 +1379,5 @@ public:
         return output;
     }
 };
+
+

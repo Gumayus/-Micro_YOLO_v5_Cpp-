@@ -19,6 +19,12 @@ public:
     // dt : 时间间隔
     KalmanFilter(float dt = 0.033f);
 
+    // 在类内部加上这四行，这是现代 C++ 移动语义的“准入证”
+    KalmanFilter(KalmanFilter &&) = default;
+    KalmanFilter &operator=(KalmanFilter &&) = default;
+    KalmanFilter(const KalmanFilter &) = delete;
+    KalmanFilter &operator=(const KalmanFilter &) = delete;
+
     // 状态预测
     void predict();
 
@@ -28,7 +34,12 @@ public:
     // 获取当前状态估计值 [x,y,vx,vy]
     Tensor getState() const { return *X; }
 
-private:
+    // 强行设置当前状态
+    //  init_x, init_y: 初始坐标
+    //  init_vx, init_vy: 初始速度 (通常设为0)
+
+    void set_state(float init_x, float init_y, float init_vx = 0, float init_vy = 0);
+
     // 七大矩阵
     std::unique_ptr<Tensor> X; // 状态向量 [4x1]
     std::unique_ptr<Tensor> P; // 协方差矩阵 [4x4],描述状态估计的不确定性

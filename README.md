@@ -63,6 +63,24 @@
 
 ![Tracking Demo](assets/tracking_demo.png)
 
+## 📡 感知与追踪 (Perception & Multi-Object Tracking)
+
+我们不仅赋予了引擎“眼睛”，还为其装配了“小脑”。通过结合 **Kalman Filter** 与 **SORT 算法**，实现了工业级的多目标追踪。
+
+### ✨ 技术核心 (Technical Core)
+*   **MicroKalman**: 纯 C++ 手搓线性卡尔曼滤波，实现 `[x, y, vx, vy]` 状态空间的实时预测。
+*   **SORT Logic**: 实现基于 **IoU 关联矩阵** 的贪心匹配算法，支持目标的“生老病死”全生命周期管理。
+*   **ID Persistence**: 能够有效对抗检测丢帧，在目标短时遮挡后仍能保持 ID 锁定，为电赛云台控制提供极其稳定的坐标信号。
+
+### 📊 追踪实测 (Tracking Benchmark)
+在 1080P 视频流下，纯 CPU 逻辑解算达到 **15 FPS** (Release 模式)，ID 切换（ID Switch）率极低。
+
+![SORT Tracking Demo](assets/sort_tracking_demo_1.png)
+![SORT Tracking Demo](assets/sort_tracking_demo_2.png)
+
+---
+*"硬件不够，算法来凑。" —— 献给 2025 全国大学生电子设计竞赛*
+
 ## 🛠️ 构建与运行 (Build & Run)
 
 ### 1. 编译项目
@@ -72,5 +90,3 @@ cmake ..
 make -j8
 ./yolo_run
 ./sim_kalman
-
-"硬件不够，算法来凑。" —— 献给 2025 全国大学生电子设计竞赛
