@@ -81,7 +81,7 @@ std::vector<Detection> YoloV5Detector::detect(cv::Mat& frame, bool use_quant) {
     std::vector<int> nms_result;
     cv::dnn::NMSBoxes(boxes, confidences, SCORE_THRES, NMS_THRES, nms_result);
 
-    // 6. 核心改造：封装并同步数据
+   
     std::vector<Detection> output;
     for (int idx : nms_result) {
         Detection res;
@@ -89,8 +89,7 @@ std::vector<Detection> YoloV5Detector::detect(cv::Mat& frame, bool use_quant) {
         res.confidence = confidences[idx];
         res.box = boxes[idx];
 
-        // 🔥【关键动作】调用同步函数
-        // 这一步把 cv::Rect 的整数坐标，转化成卡尔曼要用的浮点中心点
+        //转换为卡尔曼浮点数坐标
         res.sync();
 
         output.push_back(res);
