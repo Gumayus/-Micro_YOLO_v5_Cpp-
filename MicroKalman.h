@@ -18,8 +18,6 @@ class KalmanFilter
 public:
     // dt : 时间间隔
     KalmanFilter(float dt = 0.033f);
-
-    // 在类内部加上这四行，这是现代 C++ 移动语义的“准入证”
     KalmanFilter(KalmanFilter &&) = default;
     KalmanFilter &operator=(KalmanFilter &&) = default;
     KalmanFilter(const KalmanFilter &) = delete;
