@@ -2,8 +2,8 @@
 #include <iostream>
 #include <vector>
 #include <string>
-#include "yolo_model_v5.h" // 你的 YOLO 头文件
-#include "MicroKalman.h"   // 你的 Kalman 头文件
+#include "yolo_model_v5.h" 
+#include "MicroKalman.h"  
 
 // 辅助：获取当前时间戳 (ms) 用于计算 FPS
 double get_time_ms() {
@@ -19,12 +19,11 @@ int main() {
     YoloV5Detector detector("yolov5n_sim.onnx", false); // false = CPU FP32
 
     // 2. 初始化 Kalman
-    // 假设循环大约 30ms 一次，dt = 0.033
+   
     std::cout << "[Init] Initializing MicroKalman..." << std::endl;
     KalmanFilter kf(0.033f);
 
-    // 3. 读取静态图片 (替代视频流)
-    // 确保 bus.jpg 在当前目录
+   
     std::string img_path = "bus.jpg";
     cv::Mat source_img = cv::imread(img_path);
 
@@ -65,10 +64,8 @@ int main() {
             }
         }
 
-        // --- D. 卡尔曼滤波闭环 ---
+      
         
-        // D1. 预测 (Predict) - 必须每帧都做！
-        // 如果已经初始化了，就根据惯性猜一下位置
         if (is_initialized) {
             kf.predict();
         }
@@ -101,13 +98,13 @@ int main() {
                         cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 255, 0), 2);
         }
 
-        // --- E. 绘制卡尔曼预测结果 (红色十字) ---
+       
         if (is_initialized) {
             Tensor state = kf.getState(); // [x, y, vx, vy]
             float k_x = state.data[0];
             float k_y = state.data[1];
 
-            // 画一个红色的十字瞄准线
+           
             cv::drawMarker(frame, cv::Point((int)k_x, (int)k_y), 
                            cv::Scalar(0, 0, 255), cv::MARKER_CROSS, 30, 3);
             
