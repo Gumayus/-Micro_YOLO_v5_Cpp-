@@ -20,9 +20,9 @@ struct Detection
 {
     int class_id;
     float confidence;
-    cv::Rect box; // 保留这个，方便 OpenCV 画图
+    cv::Rect box; 
 
-    // ✅ 新增：浮点数版本的中心点坐标和宽高，专门给 Kalman 使用
+  
     float x, y, w, h;
 
     // 辅助函数：把检测结果同步到浮点数成员上
@@ -236,7 +236,7 @@ public:
             }
             return result;
         }
-        // 2. 2D 广播: [M, N] / [M, 1]
+     
         else if (ndim == 2 && other.shape.size() == 2 &&
                  other.shape[1] == 1 && this->shape[0] == other.shape[0])
         {
@@ -253,7 +253,7 @@ public:
             }
             return result;
         }
-        // 3. 特殊情况：4D 广播: [B, NH, T, D] / [B, NH, T, 1] (GPT Attention 场景)
+       
         else if (ndim == 4 && other.shape.size() == 4 &&
                  other.shape[3] == 1 && // 最后一维是 1
                  this->shape[0] == other.shape[0] &&
@@ -383,9 +383,7 @@ public:
         // 5. 创建输出张量
         Tensor out(out_shape);
 
-        // =================================================
-        //  情况 A: 2D 矩阵乘法 (Linear 层)
-        // =================================================
+       
         if (ndim == 2)
         {
             // OpenMP 并行计算 (如果系统支持)
@@ -404,16 +402,13 @@ public:
                 }
             }
         }
-        // =================================================
-        //  情况 B: 4D 批量矩阵乘法 (Attention 层)
-        //  形状: [Batch, Head, Seq, Dim]
-        // =================================================
+       
         else if (ndim == 4)
         {
             int B_dim = shape[0];  // Batch Size
             int NH_dim = shape[1]; // Num Heads
 
-            // 嵌套循环太多？其实前两维是"批量"维度，后两维是"计算"维度
+           
 #pragma omp parallel for collapse(2) // 并行化每个 Batch 和 Head
             for (int b = 0; b < B_dim; ++b)
             {
@@ -429,8 +424,7 @@ public:
                             float sum = 0.0f;
                             for (int k = 0; k < K; ++k)
                             {
-                                // 这里魔法：使用 at_4d 偷看 stride 规律
-                                // 即使 K 维有 transpose 转置，at_4d 也能找到正确位置
+                                
                                 float val_a = this->at_4d(b, nh, i, k);
                                 float val_b = other.at_4d(b, nh, k, j);
                                 sum += val_a * val_b;
@@ -493,22 +487,19 @@ public:
         if (axis < 0)
             axis += ndim;
 
-        // 2. 目前只支持对"最后一维"求和 (Softmax/LayerNorm 场景)
+       
         if (axis != ndim - 1)
         {
             std::cerr << "Sum Error: Currently only supports summing over the LAST dimension!" << std::endl;
             exit(1);
         }
 
-        // 3. 确定输出形状
-        // 其他维度保持不变，最后一维变为 1 (KeepDim=True)
+      
         std::vector<int> out_shape = this->shape;
         out_shape[axis] = 1;
         Tensor out(out_shape);
 
-        // =================================================
-        //  情况 A: 2D 求和 [rows, cols] -> [rows, 1]
-        // =================================================
+      
         if (ndim == 2)
         {
             int rows = shape[0];
@@ -524,9 +515,7 @@ public:
                 out.at(i, 0) = total;
             }
         }
-        // =================================================
-        //  情况 B: 4D 求和 [B, NH, T, D] -> [B, NH, T, 1]
-        // =================================================
+       
         else if (ndim == 4)
         {
             int B = shape[0];
@@ -687,11 +676,10 @@ public:
     // ---------------------------------------------------------
     Tensor contiguous() const
     {
-        // 1. 创建一个形状一样的新张量
-        // 注意：新张量的构造函数会自动计算标准的、连续的 strides
+        
         Tensor out(this->shape);
 
-        // 2. 目前只处理 4D 张量 (GPT 专用简化版)
+     
         if (shape.size() == 4)
         {
             int B = shape[0];
@@ -708,9 +696,7 @@ public:
                     {
                         for (int hs = 0; hs < HS; ++hs)
                         {
-                            // 这里有魔法：
-                            // out.at_4d 得到新张量的标准 strides (顺序读写)
-                            // this->at_4d 得到当前张量的 strides (可能乱序)
+                            
                             out.at_4d(b, nh, t, hs) = this->at_4d(b, nh, t, hs);
                         }
                     }
@@ -719,8 +705,7 @@ public:
         }
         else
         {
-            // 如果不是 4D 张量，直接拷贝 (偷懒，因为 GPT 只需要 4D 张量)
-            // 严谨的话应该实现通用的递归复制
+           
             out = *this;
             std::cerr << "Warning: contiguous only implemented for 4D tensors!" << std::endl;
         }
@@ -896,8 +881,7 @@ public:
         return result;
     }
 
-    // 模拟 Int8 量化 (Float -> Int8 -> Float)
-    // 目的：感受精度损失，预估上板效果
+  
     Tensor FakeQuantizeInt8() const
     {
         Tensor result(this->shape);
@@ -922,8 +906,7 @@ public:
         float scale = range / 255.0f;
         float zero_point = -128.0f - (min_val / scale);
 
-// 3. 逐元素量化再反量化
-// 也可以加上 OpenMP 加速！
+
 #pragma omp parallel for
         for (size_t i = 0; i < data.size(); ++i)
         {
