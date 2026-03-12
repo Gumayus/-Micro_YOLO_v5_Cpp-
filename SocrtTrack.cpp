@@ -57,7 +57,7 @@ std::vector<TrackResponse> SortTracker::update(const std::vector<Detection> &det
         }
     }
 
-    // 3. 处理没匹配上的 Detection (新兵入伍)
+   
     for (int d = 0; d < num_dets; d++)
     {
         if (!det_matched[d])
@@ -67,7 +67,7 @@ std::vector<TrackResponse> SortTracker::update(const std::vector<Detection> &det
         }
     }
 
-    // 4. 生死判定与生成简报 (关键逻辑)
+  
     std::vector<MicroTrack> next_frame_tracks;
     std::vector<TrackResponse> results;
 
@@ -76,7 +76,7 @@ std::vector<TrackResponse> SortTracker::update(const std::vector<Detection> &det
         if (track.time_since_update < max_age)
         {
 
-            // 如果连续击中次数达标，生成结果发给 GUI
+           
             if (track.hits >= min_hits)
             {
                 TrackResponse res;
