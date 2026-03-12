@@ -15,9 +15,7 @@ int main() {
     std::cout << "🔥 HPC Benchmark: Baseline Test 🔥" << std::endl;
     std::cout << "========================================" << std::endl;
 
-    // 1. 准备数据 (制造一个巨大的 Tensor)
-    // 形状 [1, 256, 128, 128] -> 约 420 万个浮点数
-    // 数据量约 16MB，足够让 CPU 跑一会了
+    
     int N = 1;
     int C = 256;
     int H = 128;
@@ -35,8 +33,7 @@ int main() {
     std::cout << "\n[Test 1] SiLU Activation (50 loops)..." << std::endl;
     TIC(SiLU);
     for (int i = 0; i < 50; i++) {
-        // 这里的 SiLU 还是你原来写的那个朴素版本
-        // 后面我们会去 Tensor 类里用 OpenMP/AVX 修改它
+       
         Tensor t3 = t1.SiLU(); 
     }
     TOC(SiLU);
