@@ -19,10 +19,10 @@ void draw_box(cv::Mat& img, const Detection& res, const std::string& prefix, cv:
         "hair drier", "toothbrush"
     };
 
-    // 1. 画框
+   
     cv::rectangle(img, res.box, color, thickness);
 
-    // 2. 准备标签文字
+   
     std::string label = "Unknown";
     if (res.class_id >= 0 && res.class_id < classNames.size()) {
         label = classNames[res.class_id];
@@ -30,11 +30,11 @@ void draw_box(cv::Mat& img, const Detection& res, const std::string& prefix, cv:
     // 加上前缀 (FP32/Int8) 和置信度
     label = prefix + label + ": " + std::to_string(res.confidence).substr(0, 4);
 
-    // 3. 画文字背景 (为了看清字)
+  
     int baseLine;
     cv::Size labelSize = cv::getTextSize(label, cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseLine);
     
-    // 稍微错开一点位置，防止文字重叠
+
     int text_y = res.box.y - 5;
     if (prefix == "[Int8] ") text_y -= 15; // 如果是 Int8，文字往上提一点
 
@@ -86,7 +86,7 @@ int main() {
         draw_box(img, res, "[FP32] ", cv::Scalar(0, 255, 0), 2);
     }
 
-    // 后画 Int8 (红色，线宽 1) -> 这样红色会叠加在绿色上面，方便看偏差
+   
     for (const auto& res : results_int8) {
         draw_box(img, res, "[Int8] ", cv::Scalar(0, 0, 255), 1);
     }
